@@ -2,6 +2,7 @@ export {
   initializeOpenAI,
   getOpenAIClient,
   isOpenAIInitialized,
+  getGridSuggestions,
   getWordCompletions
 } from './openai';
 

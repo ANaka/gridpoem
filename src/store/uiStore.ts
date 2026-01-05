@@ -28,7 +28,7 @@ export const useUIStore = create<UIStore>((set) => ({
   isEditing: false,
   editValue: '',
   suggestionMode: 'balanced',
-  apiKey: '',
+  apiKey: import.meta.env.VITE_OPENAI_API_KEY || '',
 
   selectCell: (position: Position) =>
     set({

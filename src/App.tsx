@@ -1,9 +1,19 @@
+import { useEffect } from 'react';
 import { Toolbar } from './components/Toolbar';
 import { Grid, PhrasePreview } from './components/Grid';
 import { SuggestionPanel } from './components/Suggestions';
 import { useGridNavigation, useProbabilities } from './hooks';
+import { initializeOpenAI } from './services/openai';
 
 function App() {
+  // Initialize OpenAI client from env variable on mount
+  useEffect(() => {
+    const envKey = import.meta.env.VITE_OPENAI_API_KEY;
+    if (envKey) {
+      initializeOpenAI(envKey);
+    }
+  }, []);
+
   // Initialize keyboard navigation
   useGridNavigation();
 

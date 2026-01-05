@@ -23,8 +23,68 @@ export interface WordSuggestion {
 }
 
 /**
- * Get word completions using completion-style prompting.
+ * Get word suggestions for a grid cell using full grid context.
  * Uses multiple completions to get word variety and probabilities.
+ */
+export async function getGridSuggestions(
+  prompt: string,
+  numCompletions: number = 10
+): Promise<WordSuggestion[]> {
+  if (!client) {
+    throw new Error('OpenAI client not initialized.');
+  }
+
+  if (!prompt.trim()) {
+    return [];
+  }
+
+  const response = await client.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a creative poet helping complete a grid poem. Output exactly ONE word that fits both the row and column context. Output only that single word, nothing else.'
+      },
+      {
+        role: 'user',
+        content: prompt
+      }
+    ],
+    max_tokens: 4,
+    n: numCompletions,
+    temperature: 1.0,
+  });
+
+  // Count words across completions
+  const wordCounts = new Map<string, number>();
+
+  for (const choice of response.choices) {
+    const content = choice.message.content?.trim().toLowerCase();
+    if (!content) continue;
+
+    // Extract first word, remove punctuation
+    const word = content.split(/\s+/)[0].replace(/[^a-z'-]/gi, '');
+    if (!word || word.length < 1) continue;
+
+    wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
+  }
+
+  // Convert to suggestions with probability = frequency
+  const suggestions: WordSuggestion[] = [];
+  for (const [word, count] of wordCounts) {
+    suggestions.push({
+      word,
+      probability: count / numCompletions
+    });
+  }
+
+  suggestions.sort((a, b) => b.probability - a.probability);
+  return suggestions.slice(0, 10);
+}
+
+/**
+ * Legacy: Get word completions for a simple context string.
+ * Used by calculateCellProbabilities for existing word scoring.
  */
 export async function getWordCompletions(
   contextBefore: string,
@@ -40,7 +100,7 @@ export async function getWordCompletions(
   }
 
   const response = await client.chat.completions.create({
-    model: 'gpt-4o-mini',
+    model: 'gpt-4o',
     messages: [
       {
         role: 'system',
@@ -54,11 +114,9 @@ export async function getWordCompletions(
     max_tokens: 4,
     n: numCompletions,
     temperature: 1.0,
-    logprobs: true
   });
 
-  // Count words and track best logprob for each
-  const wordData = new Map<string, { count: number; logprob: number }>();
+  const wordCounts = new Map<string, number>();
 
   for (const choice of response.choices) {
     const content = choice.message.content?.trim().toLowerCase();
@@ -67,23 +125,14 @@ export async function getWordCompletions(
     const word = content.split(/\s+/)[0].replace(/[^a-z'-]/gi, '');
     if (!word || word.length < 1) continue;
 
-    const logprob = choice.logprobs?.content?.[0]?.logprob ?? -3;
-
-    const existing = wordData.get(word);
-    if (existing) {
-      existing.count++;
-      existing.logprob = Math.max(existing.logprob, logprob);
-    } else {
-      wordData.set(word, { count: 1, logprob });
-    }
+    wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
   }
 
-  // Convert to suggestions - use count as main signal
   const suggestions: WordSuggestion[] = [];
-  for (const [word, data] of wordData) {
+  for (const [word, count] of wordCounts) {
     suggestions.push({
       word,
-      probability: data.count / numCompletions
+      probability: count / numCompletions
     });
   }
 

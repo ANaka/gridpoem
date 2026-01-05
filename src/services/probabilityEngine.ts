@@ -1,91 +1,78 @@
-import { Suggestion, PhraseContext } from '../types';
-import { getWordCompletions, WordSuggestion } from './openai';
+import { Suggestion, GridContext, PhraseContext } from '../types';
+import { getGridSuggestions, getWordCompletions } from './openai';
 
 /**
- * Get suggestions for a cell given row and column context.
- * Uses completion-style prompting for natural word suggestions.
+ * Build a prompt showing the full grid context for the AI.
  */
-export async function getSuggestions(
-  rowContext: PhraseContext,
-  colContext: PhraseContext,
-  mode: 'row' | 'column' | 'balanced' = 'balanced'
-): Promise<Suggestion[]> {
-  const rowPrompt = rowContext.before.join(' ');
-  const colPrompt = colContext.before.join(' ');
+function buildGridPrompt(context: GridContext): string {
+  const { grid, position } = context;
+  const rows = grid.length;
+  const cols = grid[0]?.length || 0;
 
-  // Fetch completions in parallel
-  const [rowSuggestions, colSuggestions] = await Promise.all([
-    rowPrompt ? getWordCompletions(rowPrompt) : Promise.resolve([]),
-    colPrompt ? getWordCompletions(colPrompt) : Promise.resolve([])
-  ]);
+  if (rows === 0 || cols === 0) return '';
 
-  // Merge suggestions from both contexts
-  return mergeSuggestions(rowSuggestions, colSuggestions, mode);
+  // Find max word length for alignment
+  let maxLen = 5; // minimum width
+  for (const row of grid) {
+    for (const word of row) {
+      if (word.length > maxLen) maxLen = word.length;
+    }
+  }
+
+  // Build grid visualization
+  const lines: string[] = [];
+  lines.push(`GRID (${rows}x${cols}):`);
+
+  for (let r = 0; r < rows; r++) {
+    const cells: string[] = [];
+    for (let c = 0; c < cols; c++) {
+      const isTarget = r === position.row && c === position.col;
+      const word = grid[r][c];
+      const display = isTarget ? '[___]' : (word || '·');
+      cells.push(display.padEnd(maxLen));
+    }
+    lines.push(`Row ${r + 1}: ${cells.join(' | ')}`);
+  }
+
+  // Extract row and column phrases
+  const rowWords = grid[position.row].map((w, i) =>
+    i === position.col ? '[___]' : (w || '·')
+  );
+  const colWords = grid.map((row, i) =>
+    i === position.row ? '[___]' : (row[position.col] || '·')
+  );
+
+  lines.push('');
+  lines.push(`TARGET: Row ${position.row + 1}, Column ${position.col + 1}`);
+  lines.push(`- Row reads:    "${rowWords.join(' ')}"`);
+  lines.push(`- Column reads: "${colWords.join(' ')}"`);
+  lines.push('');
+  lines.push('Suggest ONE word that works well in both the row and column phrases.');
+
+  return lines.join('\n');
 }
 
 /**
- * Merge and rank suggestions from row and column contexts
+ * Get suggestions for a cell given full grid context.
+ * Uses a single API call with the complete grid state.
  */
-function mergeSuggestions(
-  rowSuggestions: WordSuggestion[],
-  colSuggestions: WordSuggestion[],
-  mode: 'row' | 'column' | 'balanced'
-): Suggestion[] {
-  const suggestionMap = new Map<string, Suggestion>();
+export async function getSuggestions(
+  context: GridContext
+): Promise<Suggestion[]> {
+  const prompt = buildGridPrompt(context);
 
-  // Process row suggestions
-  for (const s of rowSuggestions) {
-    suggestionMap.set(s.word, {
-      word: s.word,
-      rowProbability: s.probability,
-      colProbability: 0,
-      combinedScore: 0,
-      source: 'row'
-    });
+  if (!prompt) {
+    return [];
   }
 
-  // Process column suggestions
-  for (const s of colSuggestions) {
-    const existing = suggestionMap.get(s.word);
-    if (existing) {
-      existing.colProbability = s.probability;
-      existing.source = 'both';
-    } else {
-      suggestionMap.set(s.word, {
-        word: s.word,
-        rowProbability: 0,
-        colProbability: s.probability,
-        combinedScore: 0,
-        source: 'column'
-      });
-    }
-  }
+  const wordSuggestions = await getGridSuggestions(prompt);
 
-  // Calculate combined scores based on mode
-  for (const suggestion of suggestionMap.values()) {
-    switch (mode) {
-      case 'row':
-        suggestion.combinedScore = suggestion.rowProbability;
-        break;
-      case 'column':
-        suggestion.combinedScore = suggestion.colProbability;
-        break;
-      case 'balanced':
-        // Geometric mean, with bonus for words in both contexts
-        const rowProb = suggestion.rowProbability || 0.05;
-        const colProb = suggestion.colProbability || 0.05;
-        suggestion.combinedScore = Math.sqrt(rowProb * colProb);
-        if (suggestion.source === 'both') {
-          suggestion.combinedScore *= 2;
-        }
-        break;
-    }
-  }
-
-  const suggestions = Array.from(suggestionMap.values());
-  suggestions.sort((a, b) => b.combinedScore - a.combinedScore);
-
-  return suggestions.slice(0, 10);
+  // Convert to Suggestion format
+  return wordSuggestions.map(ws => ({
+    word: ws.word,
+    probability: ws.probability,
+    combinedScore: ws.probability,
+  }));
 }
 
 /**
