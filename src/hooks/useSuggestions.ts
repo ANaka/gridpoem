@@ -78,9 +78,24 @@ export function useSuggestions(): UseSuggestionsResult {
 
         const result = await getSuggestions(context);
 
+        // Build row and column phrase templates
+        const rowTemplate = grid[debouncedSelectedCell.row].map((w, c) =>
+          c === debouncedSelectedCell.col ? '___' : (w || '·')
+        );
+        const colTemplate = grid.map((row, r) =>
+          r === debouncedSelectedCell.row ? '___' : (row[debouncedSelectedCell.col] || '·')
+        );
+
+        // Add phrase previews to each suggestion
+        const suggestionsWithPhrases = result.map(s => ({
+          ...s,
+          rowPhrase: rowTemplate.map(w => w === '___' ? s.word : w).join(' '),
+          colPhrase: colTemplate.map(w => w === '___' ? s.word : w).join(' '),
+        }));
+
         // Only update state if this is still the latest request
         if (currentRequestId === requestIdRef.current) {
-          setSuggestions(result);
+          setSuggestions(suggestionsWithPhrases);
           setLoading(false);
         }
       } catch (err) {

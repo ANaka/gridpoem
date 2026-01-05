@@ -43,7 +43,15 @@ export async function getGridSuggestions(
     messages: [
       {
         role: 'system',
-        content: 'You are a creative poet helping complete a grid poem. Output exactly ONE word that fits both the row and column context. Output only that single word, nothing else.'
+        content: `You are a creative poet helping complete a grid poem where words must read meaningfully both horizontally (as a row phrase) and vertically (as a column phrase).
+
+Your goal: Find ONE evocative word that creates interesting phrases in BOTH directions. Favor:
+- Words with rich imagery or emotional resonance
+- Unexpected connections that still make grammatical sense
+- Verbs, nouns, and adjectives over articles/prepositions
+- Words that add meaning rather than just filling space
+
+Output only that single word, nothing else.`
       },
       {
         role: 'user',
