@@ -44,10 +44,10 @@ function buildGridPrompt(context: GridContext): string {
 
   lines.push('');
   lines.push(`TARGET: Row ${position.row + 1}, Column ${position.col + 1}`);
-  lines.push(`- Row reads:    "${rowWords.join(' ')}"`);
-  lines.push(`- Column reads: "${colWords.join(' ')}"`);
+  lines.push(`→ Row phrase:    "${rowWords.join(' ')}"`);
+  lines.push(`↓ Column phrase: "${colWords.join(' ')}"`);
   lines.push('');
-  lines.push('Suggest ONE word that works well in both the row and column phrases.');
+  lines.push('Find a word for [___] that makes BOTH phrases meaningful and poetic.');
 
   return lines.join('\n');
 }

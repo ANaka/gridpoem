@@ -7,6 +7,7 @@ interface UIState {
   selectedCell: Position | null;
   isEditing: boolean;
   editValue: string;
+  selectOnFocus: boolean;
   suggestionMode: SuggestionMode;
   apiKey: string;
 }
@@ -14,7 +15,7 @@ interface UIState {
 interface UIActions {
   selectCell: (position: Position) => void;
   clearSelection: () => void;
-  startEditing: (initialValue?: string) => void;
+  startEditing: (initialValue?: string, selectOnFocus?: boolean) => void;
   stopEditing: () => void;
   setEditValue: (value: string) => void;
   setSuggestionMode: (mode: SuggestionMode) => void;
@@ -27,6 +28,7 @@ export const useUIStore = create<UIStore>((set) => ({
   selectedCell: null,
   isEditing: false,
   editValue: '',
+  selectOnFocus: false,
   suggestionMode: 'balanced',
   apiKey: import.meta.env.VITE_OPENAI_API_KEY || '',
 
@@ -35,6 +37,7 @@ export const useUIStore = create<UIStore>((set) => ({
       selectedCell: position,
       isEditing: false,
       editValue: '',
+      selectOnFocus: false,
     }),
 
   clearSelection: () =>
@@ -42,18 +45,21 @@ export const useUIStore = create<UIStore>((set) => ({
       selectedCell: null,
       isEditing: false,
       editValue: '',
+      selectOnFocus: false,
     }),
 
-  startEditing: (initialValue?: string) =>
+  startEditing: (initialValue?: string, selectOnFocus: boolean = false) =>
     set(() => ({
       isEditing: true,
       editValue: initialValue ?? '',
+      selectOnFocus,
     })),
 
   stopEditing: () =>
     set({
       isEditing: false,
       editValue: '',
+      selectOnFocus: false,
     }),
 
   setEditValue: (value: string) =>

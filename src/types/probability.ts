@@ -4,6 +4,8 @@ export interface Suggestion {
   word: string;
   probability: number;
   combinedScore: number;
+  rowPhrase?: string;   // e.g., "hearts [run] deep"
+  colPhrase?: string;   // e.g., "rivers [run] softly"
 }
 
 export interface GridContext {

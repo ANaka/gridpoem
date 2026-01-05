@@ -1,7 +1,22 @@
-import React, { useCallback, useRef, useEffect } from 'react';
+import React, { useCallback, useRef, useEffect, useMemo } from 'react';
 import { useGridStore } from '../../store/gridStore';
 import { useUIStore } from '../../store/uiStore';
 import { probabilityToColor } from '../../utils';
+
+// Calculate font size to fit text within cell
+// Cell width ~68px (80px - 12px padding), monospace char width ~0.6em
+const BASE_FONT_SIZE = 18;
+const MIN_FONT_SIZE = 8;
+const CELL_WIDTH = 68;
+const CHAR_WIDTH_RATIO = 0.6;
+
+function calculateFontSize(text: string): number {
+  if (!text || text.length === 0) return BASE_FONT_SIZE;
+  const neededWidth = text.length * BASE_FONT_SIZE * CHAR_WIDTH_RATIO;
+  if (neededWidth <= CELL_WIDTH) return BASE_FONT_SIZE;
+  const scaledSize = CELL_WIDTH / (text.length * CHAR_WIDTH_RATIO);
+  return Math.max(MIN_FONT_SIZE, Math.round(scaledSize));
+}
 
 interface GridCellProps {
   row: number;
@@ -19,6 +34,7 @@ export const GridCell: React.FC<GridCellProps> = ({ row, col }) => {
   const selectedCell = useUIStore((state) => state.selectedCell);
   const isEditing = useUIStore((state) => state.isEditing);
   const editValue = useUIStore((state) => state.editValue);
+  const selectOnFocus = useUIStore((state) => state.selectOnFocus);
   const selectCell = useUIStore((state) => state.selectCell);
   const startEditing = useUIStore((state) => state.startEditing);
   const stopEditing = useUIStore((state) => state.stopEditing);
@@ -33,9 +49,15 @@ export const GridCell: React.FC<GridCellProps> = ({ row, col }) => {
   useEffect(() => {
     if (isCellEditing && inputRef.current) {
       inputRef.current.focus();
-      inputRef.current.select();
+      if (selectOnFocus) {
+        inputRef.current.select();
+      } else {
+        // Move cursor to end
+        const len = inputRef.current.value.length;
+        inputRef.current.setSelectionRange(len, len);
+      }
     }
-  }, [isCellEditing]);
+  }, [isCellEditing, selectOnFocus]);
 
   // Handle single click to select
   const handleClick = useCallback(() => {
@@ -44,10 +66,10 @@ export const GridCell: React.FC<GridCellProps> = ({ row, col }) => {
     }
   }, [selectCell, row, col, isCellEditing]);
 
-  // Handle double click to edit
+  // Handle double click to edit - select all existing text
   const handleDoubleClick = useCallback(() => {
     selectCell({ row, col });
-    startEditing(cell?.word || '');
+    startEditing(cell?.word || '', true);  // selectOnFocus = true
   }, [selectCell, startEditing, row, col, cell?.word]);
 
   // Handle input change
@@ -86,6 +108,10 @@ export const GridCell: React.FC<GridCellProps> = ({ row, col }) => {
   // Get background color from probability
   const backgroundColor = probabilityToColor(cell?.combinedProbability ?? null);
 
+  // Calculate font size to fit text
+  const displayText = isCellEditing ? editValue : (cell?.word || '');
+  const fontSize = useMemo(() => calculateFontSize(displayText), [displayText]);
+
   return (
     <div
       className={`
@@ -107,9 +133,10 @@ export const GridCell: React.FC<GridCellProps> = ({ row, col }) => {
           onBlur={handleInputBlur}
           onKeyDown={handleKeyDown}
           className="grid-cell-input"
+          style={{ fontSize }}
         />
       ) : (
-        <span className="truncate px-1">
+        <span className="px-1.5" style={{ fontSize }}>
           {cell?.word || ''}
         </span>
       )}
